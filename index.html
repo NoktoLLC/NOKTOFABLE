@@ -843,9 +843,9 @@ gsap.registerPlugin(ScrollTrigger);
 var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ============================================================
-   THREE.JS — MOON SURFACE / EARTH ECLIPSE HERO
-   Two astronauts on the Moon. Earth rotates in deep space.
-   Solar corona glows behind. Eclipse shadow transits Earth.
+   THREE.JS MOON HERO
+   Composition: wide cinematic — Earth large LEFT, two white-suited
+   astronauts from behind RIGHT, lunar surface, rocks, dust, corona.
    ============================================================ */
 (function initMoonHero(){
   if (typeof THREE === 'undefined') return;
@@ -854,397 +854,281 @@ var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').match
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.85;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
 
   var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x00000a);
+  scene.background = new THREE.Color(0x00000c);
+  scene.fog = new THREE.FogExp2(0x00000c, 0.0012);
 
-  var camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.01, 5000);
-  camera.position.set(0, 1.1, 6);
-  camera.lookAt(0, 3.5, -5);
+  /* Camera: behind & right of astronauts, low angle, looking toward Earth on left */
+  var camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.01, 5000);
+  camera.position.set(2.8, 1.0, 5.5);
+  camera.lookAt(-1.5, 2.8, -8);
 
-  /* ── STAR FIELD ── */
-  var N = 3200;
-  var sPos = new Float32Array(N * 3);
-  var sAlpha = new Float32Array(N);
-  for (var i = 0; i < N; i++) {
-    var theta = Math.random() * Math.PI * 2;
-    var phi = Math.acos(2 * Math.random() - 1);
-    var r = 600 + Math.random() * 200;
-    sPos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
-    sPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
-    sPos[i*3+2] = r * Math.cos(phi);
-    sAlpha[i] = 0.4 + Math.random() * 0.6;
+  /* ── STARS ── */
+  var N = 3000;
+  var sp = new Float32Array(N*3), sa = new Float32Array(N);
+  for (var i=0;i<N;i++){
+    var th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1), r=700+Math.random()*200;
+    sp[i*3]=r*Math.sin(ph)*Math.cos(th); sp[i*3+1]=r*Math.sin(ph)*Math.sin(th); sp[i*3+2]=r*Math.cos(ph);
+    sa[i]=0.3+Math.random()*0.7;
   }
-  var sGeo = new THREE.BufferGeometry();
-  sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
-  sGeo.setAttribute('aAlpha', new THREE.BufferAttribute(sAlpha, 1));
-  var sMat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: [
-      'attribute float aAlpha; varying float vA; uniform float uTime;',
-      'void main(){',
-      '  vA = aAlpha*(0.65+0.35*sin(uTime*1.8+position.x*0.009+position.y*0.013));',
-      '  vec4 mv=modelViewMatrix*vec4(position,1.0);',
-      '  gl_PointSize=1.2+aAlpha*1.1;',
-      '  gl_Position=projectionMatrix*mv;',
-      '}'
-    ].join('\n'),
-    fragmentShader: [
-      'varying float vA;',
-      'void main(){',
-      '  float d=length(gl_PointCoord-vec2(0.5));',
-      '  if(d>0.5)discard;',
-      '  gl_FragColor=vec4(0.88,0.92,1.0,vA*(1.0-d*1.6));',
-      '}'
-    ].join('\n'),
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  var sGeo=new THREE.BufferGeometry();
+  sGeo.setAttribute('position',new THREE.BufferAttribute(sp,3));
+  sGeo.setAttribute('aA',new THREE.BufferAttribute(sa,1));
+  var sMat=new THREE.ShaderMaterial({
+    uniforms:{uT:{value:0}},
+    vertexShader:'attribute float aA;varying float vA;uniform float uT;\nvoid main(){vA=aA*(0.6+0.4*sin(uT*1.6+position.x*0.01+position.y*0.014));vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=1.1+aA*1.2;gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'varying float vA;void main(){float d=length(gl_PointCoord-vec2(0.5));if(d>0.5)discard;gl_FragColor=vec4(0.88,0.93,1.0,vA*(1.0-d*1.8));}',
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending
   });
-  scene.add(new THREE.Points(sGeo, sMat));
+  scene.add(new THREE.Points(sGeo,sMat));
 
-  /* ── SOLAR CORONA (large glow plane, far behind Earth) ── */
-  var coronaMat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader: [
-      'uniform float uTime; varying vec2 vUv;',
-      'void main(){',
-      '  vec2 c=vUv-0.5;',
-      '  float d=length(c);',
-      '  float ang=atan(c.y,c.x);',
-      '  float rays=0.06*sin(ang*11.0+uTime*0.4)*sin(ang*6.0-uTime*0.25);',
-      '  float core=exp(-pow(max(d-0.06+rays,0.0)*6.5,1.1));',
-      '  float halo=exp(-pow(max(d-0.03,0.0)*2.2,0.85))*0.55;',
-      '  float streaks=0.03*exp(-pow(max(d-0.1,0.0)*4.0,1.0))*sin(ang*18.0+uTime*0.6);',
-      '  vec3 hot=vec3(1.0,0.96,0.82);',
-      '  vec3 warm=vec3(1.0,0.38,0.08);',
-      '  vec3 col=mix(warm,hot,smoothstep(0.25,0.0,d))*(1.4+core+streaks);',
-      '  float a=clamp(core+halo+streaks,0.0,1.0);',
-      '  gl_FragColor=vec4(col,a*0.82);',
-      '}'
-    ].join('\n'),
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+  /* ── SOLAR CORONA behind Earth ── */
+  var cMat=new THREE.ShaderMaterial({
+    uniforms:{uT:{value:0}},
+    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+    fragmentShader:'uniform float uT;varying vec2 vUv;void main(){vec2 c=vUv-0.5;float d=length(c);float ang=atan(c.y,c.x);float rays=0.055*sin(ang*12.0+uT*0.45)*sin(ang*7.0-uT*0.28)+0.025*sin(ang*22.0+uT*0.9);float core=exp(-pow(max(d-0.055+rays,0.0)*7.0,1.05));float halo=exp(-pow(max(d-0.03,0.0)*2.0,0.82))*0.6;vec3 hot=vec3(1.0,0.96,0.80);vec3 warm=vec3(1.0,0.40,0.08);vec3 col=mix(warm,hot,smoothstep(0.28,0.0,d))*(1.5+core);float a=clamp(core+halo,0.0,1.0);gl_FragColor=vec4(col,a*0.78);}',
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide
   });
-  var coronaMesh = new THREE.Mesh(new THREE.PlaneGeometry(32, 32), coronaMat);
-  coronaMesh.position.set(-0.4, 4.8, -32);
+  var coronaMesh=new THREE.Mesh(new THREE.PlaneGeometry(36,36),cMat);
+  coronaMesh.position.set(-5.5, 4.2, -35);
   scene.add(coronaMesh);
 
-  /* ── EARTH (procedural canvas texture) ── */
-  function buildEarthTex() {
-    var c = document.createElement('canvas');
-    c.width = 2048; c.height = 1024;
-    var x = c.getContext('2d');
-    // Ocean base
-    var og = x.createLinearGradient(0,0,0,1024);
-    og.addColorStop(0,'#0b2e60'); og.addColorStop(0.35,'#1a4f90');
-    og.addColorStop(0.65,'#1a4f90'); og.addColorStop(1,'#0b2e60');
+  /* ── EARTH ── */
+  function buildEarthTex(){
+    var c=document.createElement('canvas'); c.width=2048; c.height=1024;
+    var x=c.getContext('2d');
+    var og=x.createLinearGradient(0,0,0,1024);
+    og.addColorStop(0,'#0b2e60'); og.addColorStop(0.35,'#1b52a0'); og.addColorStop(0.65,'#1b52a0'); og.addColorStop(1,'#0b2e60');
     x.fillStyle=og; x.fillRect(0,0,2048,1024);
-    // Continents
-    x.fillStyle='#2e6b1a';
-    // North America
-    x.beginPath(); x.moveTo(270,175); x.bezierCurveTo(340,155,420,148,455,195);
-    x.bezierCurveTo(475,240,470,310,450,380); x.bezierCurveTo(430,450,390,500,355,530);
-    x.bezierCurveTo(330,555,295,545,272,510); x.bezierCurveTo(248,470,242,400,248,330);
-    x.bezierCurveTo(255,265,250,210,270,175); x.closePath(); x.fill();
-    // Greenland
-    x.beginPath(); x.ellipse(360,110,45,35,0.2,0,Math.PI*2); x.fill();
-    // South America
-    x.beginPath(); x.moveTo(355,545); x.bezierCurveTo(390,520,440,525,465,565);
-    x.bezierCurveTo(490,615,488,700,465,775); x.bezierCurveTo(445,840,400,865,365,848);
-    x.bezierCurveTo(330,825,318,760,320,690); x.bezierCurveTo(325,625,335,580,355,545);
-    x.closePath(); x.fill();
+    x.fillStyle='#2d6b18';
+    // N.America
+    x.beginPath();x.moveTo(270,178);x.bezierCurveTo(340,155,425,148,458,196);x.bezierCurveTo(478,242,472,318,450,384);x.bezierCurveTo(428,452,390,504,352,534);x.bezierCurveTo(326,558,292,548,270,512);x.bezierCurveTo(246,472,240,400,246,330);x.bezierCurveTo(254,264,252,208,270,178);x.closePath();x.fill();
+    x.beginPath();x.ellipse(362,112,46,36,0.2,0,Math.PI*2);x.fill();
+    // S.America
+    x.beginPath();x.moveTo(358,548);x.bezierCurveTo(392,522,442,528,468,568);x.bezierCurveTo(494,618,490,704,466,778);x.bezierCurveTo(444,842,402,868,366,850);x.bezierCurveTo(330,828,318,762,320,692);x.bezierCurveTo(326,628,338,582,358,548);x.closePath();x.fill();
     // Europe
-    x.beginPath(); x.moveTo(885,165); x.bezierCurveTo(935,148,985,155,1010,195);
-    x.bezierCurveTo(1030,230,1022,285,995,318); x.bezierCurveTo(965,348,920,352,890,330);
-    x.bezierCurveTo(862,308,858,265,868,225); x.bezierCurveTo(872,195,870,175,885,165);
-    x.closePath(); x.fill();
-    // Scandinavia (thin peninsula)
-    x.beginPath(); x.moveTo(920,115); x.bezierCurveTo(945,110,968,125,972,155);
-    x.bezierCurveTo(975,185,960,205,940,210); x.bezierCurveTo(920,210,908,190,910,165);
-    x.closePath(); x.fill();
+    x.beginPath();x.moveTo(888,168);x.bezierCurveTo(938,150,988,158,1012,198);x.bezierCurveTo(1032,234,1024,288,996,320);x.bezierCurveTo(966,350,920,354,890,332);x.bezierCurveTo(860,310,856,266,866,226);x.bezierCurveTo(872,196,870,178,888,168);x.closePath();x.fill();
+    x.beginPath();x.moveTo(924,118);x.bezierCurveTo(948,112,970,128,974,158);x.bezierCurveTo(978,188,962,208,942,212);x.bezierCurveTo(920,212,908,192,910,166);x.closePath();x.fill();
     // Africa
-    x.beginPath(); x.moveTo(878,295); x.bezierCurveTo(930,275,1000,285,1040,330);
-    x.bezierCurveTo(1075,375,1080,460,1070,560); x.bezierCurveTo(1060,665,1020,745,975,790);
-    x.bezierCurveTo(942,820,905,820,880,790); x.bezierCurveTo(852,755,842,680,845,590);
-    x.bezierCurveTo(848,490,852,380,878,295); x.closePath(); x.fill();
-    // Asia (large)
-    x.beginPath(); x.moveTo(1005,145); x.bezierCurveTo(1120,118,1280,112,1420,135);
-    x.bezierCurveTo(1540,155,1610,200,1630,260); x.bezierCurveTo(1645,315,1620,375,1570,405);
-    x.bezierCurveTo(1510,438,1420,448,1330,445); x.bezierCurveTo(1230,440,1150,430,1075,410);
-    x.bezierCurveTo(1010,392,968,360,955,310); x.bezierCurveTo(942,260,960,188,1005,145);
-    x.closePath(); x.fill();
-    // India
-    x.beginPath(); x.moveTo(1095,395); x.bezierCurveTo(1130,388,1165,400,1175,440);
-    x.bezierCurveTo(1182,475,1165,520,1130,550); x.bezierCurveTo(1108,568,1082,562,1068,538);
-    x.bezierCurveTo(1050,510,1052,462,1070,428); x.closePath(); x.fill();
-    // Southeast Asia / Indonesia
-    x.beginPath(); x.ellipse(1480,440,65,28,0.3,0,Math.PI*2); x.fill();
-    x.beginPath(); x.ellipse(1560,460,45,22,0.2,0,Math.PI*2); x.fill();
+    x.beginPath();x.moveTo(880,298);x.bezierCurveTo(932,276,1004,286,1044,332);x.bezierCurveTo(1078,378,1082,464,1072,564);x.bezierCurveTo(1062,668,1022,748,978,792);x.bezierCurveTo(944,822,906,822,880,792);x.bezierCurveTo(852,758,842,682,846,592);x.bezierCurveTo(850,492,854,382,880,298);x.closePath();x.fill();
+    // Asia
+    x.beginPath();x.moveTo(1008,148);x.bezierCurveTo(1122,120,1284,114,1424,138);x.bezierCurveTo(1542,158,1614,204,1634,264);x.bezierCurveTo(1648,318,1622,378,1572,408);x.bezierCurveTo(1512,440,1424,450,1332,448);x.bezierCurveTo(1230,444,1148,432,1074,412);x.bezierCurveTo(1008,394,964,362,952,312);x.bezierCurveTo(940,262,962,190,1008,148);x.closePath();x.fill();
+    x.beginPath();x.moveTo(1098,398);x.bezierCurveTo(1132,390,1168,402,1178,442);x.bezierCurveTo(1186,478,1168,524,1132,552);x.bezierCurveTo(1108,570,1082,564,1068,540);x.bezierCurveTo(1050,512,1052,464,1070,430);x.closePath();x.fill();
+    x.beginPath();x.ellipse(1484,444,66,28,0.3,0,Math.PI*2);x.fill();
     // Australia
-    x.beginPath(); x.moveTo(1385,575); x.bezierCurveTo(1455,555,1535,565,1575,610);
-    x.bezierCurveTo(1610,650,1612,720,1585,775); x.bezierCurveTo(1555,830,1480,852,1415,838);
-    x.bezierCurveTo(1355,820,1325,768,1328,705); x.bezierCurveTo(1332,648,1348,595,1385,575);
-    x.closePath(); x.fill();
-    // Antarctica/ice caps
-    x.fillStyle='#cde4f5';
-    x.beginPath(); x.ellipse(1024,48,520,52,0,0,Math.PI*2); x.fill();
-    x.beginPath(); x.ellipse(1024,976,460,48,0,0,Math.PI*2); x.fill();
-    // Desert tones
-    x.fillStyle='rgba(185,140,60,0.28)';
-    x.beginPath(); x.ellipse(960,340,90,55,0.1,0,Math.PI*2); x.fill(); // Sahara
-    x.beginPath(); x.ellipse(1158,310,70,40,0,0,Math.PI*2); x.fill(); // Middle East
-    // Ocean shimmer streaks
-    x.fillStyle='rgba(60,110,200,0.15)';
-    for (var j=0;j<35;j++){
-      x.beginPath();
-      var sx=Math.random()*2048; var sy=Math.random()*1024;
-      x.ellipse(sx,sy,Math.random()*80+20,Math.random()*12+4,Math.random()*Math.PI,0,Math.PI*2);
-      x.fill();
+    x.beginPath();x.moveTo(1388,578);x.bezierCurveTo(1458,558,1538,568,1578,614);x.bezierCurveTo(1614,654,1614,724,1588,778);x.bezierCurveTo(1558,832,1482,854,1416,840);x.bezierCurveTo(1356,822,1326,770,1330,708);x.bezierCurveTo(1334,650,1350,598,1388,578);x.closePath();x.fill();
+    // Ice caps
+    x.fillStyle='#cce6f8';
+    x.beginPath();x.ellipse(1024,46,524,54,0,0,Math.PI*2);x.fill();
+    x.beginPath();x.ellipse(1024,978,462,50,0,0,Math.PI*2);x.fill();
+    // Desert tint
+    x.fillStyle='rgba(190,145,62,0.26)';
+    x.beginPath();x.ellipse(962,344,92,56,0.1,0,Math.PI*2);x.fill();
+    x.beginPath();x.ellipse(1160,314,72,42,0,0,Math.PI*2);x.fill();
+    return new THREE.CanvasTexture(c);
+  }
+  function buildCloudTex(){
+    var c=document.createElement('canvas'); c.width=1024; c.height=512;
+    var x=c.getContext('2d'); x.clearRect(0,0,1024,512);
+    for(var i=0;i<440;i++){
+      var cx2=Math.random()*1024,cy=Math.random()*512,cr=Math.random()*40+8;
+      var g=x.createRadialGradient(cx2,cy,0,cx2,cy,cr);
+      g.addColorStop(0,'rgba(255,255,255,0.75)');g.addColorStop(1,'rgba(255,255,255,0)');
+      x.fillStyle=g;x.beginPath();x.ellipse(cx2,cy,cr*(1+Math.random()*0.9),cr*0.44,Math.random()*Math.PI,0,Math.PI*2);x.fill();
     }
     return new THREE.CanvasTexture(c);
   }
-
-  function buildCloudTex() {
-    var c = document.createElement('canvas');
-    c.width = 1024; c.height = 512;
-    var x = c.getContext('2d');
-    x.clearRect(0, 0, 1024, 512);
-    for (var i = 0; i < 420; i++) {
-      var cx2 = Math.random()*1024, cy = Math.random()*512;
-      var cr = Math.random()*38+8;
-      var g = x.createRadialGradient(cx2,cy,0,cx2,cy,cr);
-      g.addColorStop(0,'rgba(255,255,255,0.72)');
-      g.addColorStop(1,'rgba(255,255,255,0)');
-      x.fillStyle = g;
-      x.beginPath();
-      x.ellipse(cx2, cy, cr*(1+Math.random()*0.8), cr*0.45, Math.random()*Math.PI, 0, Math.PI*2);
-      x.fill();
-    }
-    return new THREE.CanvasTexture(c);
-  }
-
-  var EARTH_R = 3.8;
-  var earthGeo = new THREE.SphereGeometry(EARTH_R, 72, 72);
-  var earthMat = new THREE.MeshPhongMaterial({
-    map: buildEarthTex(),
-    shininess: 8,
-    specular: new THREE.Color(0x1a3a6a)
-  });
-  var earth = new THREE.Mesh(earthGeo, earthMat);
-  earth.position.set(-0.4, 4.8, -26);
+  var ER=4.2;
+  var earth=new THREE.Mesh(new THREE.SphereGeometry(ER,80,80),new THREE.MeshPhongMaterial({map:buildEarthTex(),shininess:6,specular:new THREE.Color(0x1a3a6a)}));
+  earth.position.set(-5.0, 4.2, -28);
   scene.add(earth);
-
-  // Atmosphere rim glow
-  var atmosMat = new THREE.ShaderMaterial({
-    vertexShader: [
-      'varying vec3 vN; varying vec3 vVD;',
-      'void main(){',
-      '  vN=normalize(normalMatrix*normal);',
-      '  vec4 mv=modelViewMatrix*vec4(position,1.0);',
-      '  vVD=normalize(-mv.xyz);',
-      '  gl_Position=projectionMatrix*mv;',
-      '}'
-    ].join('\n'),
-    fragmentShader: [
-      'varying vec3 vN; varying vec3 vVD;',
-      'void main(){',
-      '  float rim=1.0-abs(dot(vN,vVD));',
-      '  rim=pow(rim,2.2);',
-      '  vec3 col=mix(vec3(0.08,0.32,0.9),vec3(0.35,0.65,1.0),rim);',
-      '  gl_FragColor=vec4(col,rim*0.65);',
-      '}'
-    ].join('\n'),
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide
+  var atMat=new THREE.ShaderMaterial({
+    vertexShader:'varying vec3 vN;varying vec3 vVD;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.0);vVD=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'varying vec3 vN;varying vec3 vVD;void main(){float r=1.0-abs(dot(vN,vVD));r=pow(r,2.1);vec3 col=mix(vec3(0.06,0.28,0.88),vec3(0.3,0.62,1.0),r);gl_FragColor=vec4(col,r*0.7);}',
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.FrontSide
   });
-  var atmos = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R+0.22, 72, 72), atmosMat);
-  atmos.position.copy(earth.position);
-  scene.add(atmos);
+  var atmos=new THREE.Mesh(new THREE.SphereGeometry(ER+0.24,80,80),atMat);
+  atmos.position.copy(earth.position); scene.add(atmos);
+  var clouds=new THREE.Mesh(new THREE.SphereGeometry(ER+0.09,80,80),new THREE.MeshPhongMaterial({map:buildCloudTex(),transparent:true,opacity:0.50,depthWrite:false}));
+  clouds.position.copy(earth.position); scene.add(clouds);
+  var shadow=new THREE.Mesh(new THREE.SphereGeometry(ER*0.50,40,40),new THREE.MeshBasicMaterial({color:0x000008,transparent:true,opacity:0.88}));
+  shadow.position.set(earth.position.x+0.5,earth.position.y+1.0,earth.position.z+0.8); scene.add(shadow);
 
-  // Clouds
-  var cloudMat = new THREE.MeshPhongMaterial({
-    map: buildCloudTex(), transparent: true, opacity: 0.52, depthWrite: false
-  });
-  var clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R+0.08, 72, 72), cloudMat);
-  clouds.position.copy(earth.position);
-  scene.add(clouds);
-
-  // Eclipse shadow (Moon umbra on Earth surface)
-  var shadowMat = new THREE.MeshBasicMaterial({ color: 0x000005, transparent: true, opacity: 0.86 });
-  var shadowMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R*0.52, 36, 36), shadowMat);
-  shadowMesh.position.set(earth.position.x, earth.position.y, earth.position.z + 0.7);
-  scene.add(shadowMesh);
-
-  /* ── MOON SURFACE (foreground terrain) ── */
-  var mGeo = new THREE.PlaneGeometry(200, 100, 80, 30);
-  var mPos = mGeo.attributes.position;
-  for (var vi = 0; vi < mPos.count; vi++) {
-    var vx = mPos.getX(vi), vy = mPos.getY(vi);
-    var bump = Math.sin(vx*0.28)*0.38 + Math.sin(vx*0.72+1.2)*0.22
-             + Math.sin(vx*1.5+vy*0.3)*0.12 + (Math.random()-0.5)*0.08;
-    // Flatten extreme back rows (horizon line)
-    var fade = Math.max(0, Math.min(1, (vy+50)/20));
-    mPos.setZ(vi, bump * fade);
+  /* ── MOON SURFACE ── */
+  var mgeo=new THREE.PlaneGeometry(220,120,100,36);
+  var mp=mgeo.attributes.position;
+  for(var vi=0;vi<mp.count;vi++){
+    var vx=mp.getX(vi),vy=mp.getY(vi);
+    var b=Math.sin(vx*0.25)*0.45+Math.sin(vx*0.68+1.1)*0.28+Math.sin(vx*1.6+vy*0.25)*0.14+(Math.random()-0.5)*0.1;
+    var fade=Math.max(0,Math.min(1,(vy+60)/25));
+    mp.setZ(vi,b*fade);
   }
-  mPos.needsUpdate = true; mGeo.computeVertexNormals();
-  var moonSurface = new THREE.Mesh(mGeo, new THREE.MeshStandardMaterial({
-    color: 0x1a1a1e, roughness: 0.96, metalness: 0.0
-  }));
-  moonSurface.rotation.x = -Math.PI / 2;
-  moonSurface.position.y = -0.55;
-  scene.add(moonSurface);
+  mp.needsUpdate=true; mgeo.computeVertexNormals();
+  var moonMat=new THREE.MeshStandardMaterial({color:0x28282e,roughness:0.95,metalness:0.0});
+  var moonSurface=new THREE.Mesh(mgeo,moonMat);
+  moonSurface.rotation.x=-Math.PI/2; moonSurface.position.y=-0.62; scene.add(moonSurface);
 
-  /* ── ASTRONAUT SPRITES ── */
-  function buildAstronautTex() {
-    var c = document.createElement('canvas');
-    c.width = 160; c.height = 300;
-    var x = c.getContext('2d');
-    x.clearRect(0, 0, 160, 300);
-    x.fillStyle = 'rgba(8,8,10,0.95)';
+  /* Scattered moon rocks */
+  var rockMat=new THREE.MeshStandardMaterial({color:0x323238,roughness:0.9,metalness:0.0});
+  var rockPositions=[[-0.8,-0.55,2.8],[0.2,-0.58,3.5],[-2.5,-0.52,2.2],[1.8,-0.54,3.8],[-1.5,-0.56,4.5],[3.0,-0.50,2.0],[-3.2,-0.52,3.0],[0.6,-0.58,4.8],[2.4,-0.53,3.2],[-1.0,-0.55,5.5],[4.0,-0.51,3.5],[-2.0,-0.57,5.0]];
+  rockPositions.forEach(function(rp){
+    var rGeo=new THREE.DodecahedronGeometry(0.06+Math.random()*0.14,0);
+    var rock=new THREE.Mesh(rGeo,rockMat);
+    rock.position.set(rp[0],rp[1],rp[2]);
+    rock.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+    scene.add(rock);
+  });
+
+  /* ── ASTRONAUT SPRITES (white suits, red accents) ── */
+  function buildSuitTex(dustFoot){
+    var c=document.createElement('canvas'); c.width=200; c.height=360;
+    var x=c.getContext('2d'); x.clearRect(0,0,200,360);
+    var suitBase='rgba(228,230,235,0.97)';
+    var suitShadow='rgba(180,185,196,0.95)';
+    var redAccent='rgba(210,30,30,0.92)';
+    var goldVisor='rgba(185,148,30,0.55)';
     // Helmet
-    x.beginPath(); x.arc(80, 72, 38, 0, Math.PI*2); x.fill();
-    // Visor (slight blue tint)
-    x.fillStyle = 'rgba(20,50,110,0.4)';
-    x.beginPath(); x.ellipse(80, 70, 24, 20, 0, 0, Math.PI*2); x.fill();
-    x.fillStyle = 'rgba(8,8,10,0.95)';
-    // Neck connector
-    x.fillRect(68, 106, 24, 12);
+    x.fillStyle=suitBase; x.beginPath(); x.arc(100,78,44,0,Math.PI*2); x.fill();
+    x.fillStyle=suitShadow; x.beginPath(); x.arc(108,82,44,0,Math.PI*2); x.fill();
+    x.fillStyle=suitBase; x.beginPath(); x.arc(100,78,44,0,Math.PI*2); x.fill();
+    // Visor
+    x.fillStyle=goldVisor; x.beginPath(); x.ellipse(100,76,28,22,0,0,Math.PI*2); x.fill();
+    x.fillStyle='rgba(120,90,10,0.25)'; x.beginPath(); x.ellipse(95,72,20,15,0,0,Math.PI*2); x.fill();
+    // Neck
+    x.fillStyle=suitBase; x.fillRect(82,118,36,14);
     // Torso
-    x.beginPath();
-    x.moveTo(50,118); x.lineTo(110,118);
-    x.bezierCurveTo(115,118,118,122,118,128);
-    x.lineTo(118,195); x.bezierCurveTo(118,201,114,205,108,205);
-    x.lineTo(52,205); x.bezierCurveTo(46,205,42,201,42,195);
-    x.lineTo(42,128); x.bezierCurveTo(42,122,45,118,50,118);
-    x.closePath(); x.fill();
-    // Backpack
-    x.fillRect(108, 122, 20, 58);
+    x.fillStyle=suitShadow;
+    x.beginPath(); x.moveTo(55,132); x.lineTo(145,132); x.bezierCurveTo(152,132,155,138,155,146); x.lineTo(155,218); x.bezierCurveTo(155,226,150,230,142,230); x.lineTo(58,230); x.bezierCurveTo(50,230,45,226,45,218); x.lineTo(45,146); x.bezierCurveTo(45,138,48,132,55,132); x.closePath(); x.fill();
+    x.fillStyle=suitBase;
+    x.beginPath(); x.moveTo(52,130); x.lineTo(148,130); x.bezierCurveTo(155,130,158,136,158,144); x.lineTo(158,215); x.bezierCurveTo(158,223,153,228,145,228); x.lineTo(55,228); x.bezierCurveTo(47,228,42,223,42,215); x.lineTo(42,144); x.bezierCurveTo(42,136,45,130,52,130); x.closePath(); x.fill();
+    // Red arm stripe bands
+    x.fillStyle=redAccent;
+    x.fillRect(18,160,26,10); // left arm band
+    x.fillRect(156,160,26,10); // right arm band
+    x.fillRect(62,185,76,8); // chest stripe
+    // PLSS backpack
+    x.fillStyle=suitShadow; x.fillRect(148,133,26,72); x.fillRect(150,131,22,74);
+    x.fillStyle='rgba(200,205,215,0.9)'; x.fillRect(152,136,18,62);
+    x.fillStyle=redAccent; x.fillRect(153,160,16,6); // pack indicator
     // Left arm
-    x.beginPath(); x.roundRect
-      ? x.roundRect(22, 120, 22, 68, 8)
-      : (function(){ x.rect(22,120,22,68); })();
-    x.closePath(); x.fill();
+    x.fillStyle=suitBase; x.beginPath(); x.ellipse(24,178,14,52,0,0,Math.PI*2); x.fill();
+    x.fillStyle=suitShadow; x.beginPath(); x.ellipse(26,180,12,50,0,0,Math.PI*2); x.fill();
+    x.fillStyle=suitBase; x.beginPath(); x.ellipse(22,176,13,50,0,0,Math.PI*2); x.fill();
     // Right arm
-    x.beginPath(); x.fillRect(116, 120, 22, 68);
+    x.fillStyle=suitBase; x.beginPath(); x.ellipse(176,178,14,52,0,0,Math.PI*2); x.fill();
+    x.fillStyle=suitShadow; x.beginPath(); x.ellipse(178,180,12,50,0,0,Math.PI*2); x.fill();
+    x.fillStyle=suitBase; x.beginPath(); x.ellipse(174,176,13,50,0,0,Math.PI*2); x.fill();
     // Gloves
-    x.beginPath(); x.ellipse(33, 193, 13, 10, 0, 0, Math.PI*2); x.fill();
-    x.beginPath(); x.ellipse(127, 193, 13, 10, 0, 0, Math.PI*2); x.fill();
-    // Left leg
-    x.fillRect(52, 203, 26, 72);
-    // Right leg
-    x.fillRect(82, 203, 26, 72);
+    x.fillStyle='rgba(200,180,100,0.9)'; x.beginPath(); x.ellipse(22,228,14,11,0,0,Math.PI*2); x.fill();
+    x.beginPath(); x.ellipse(178,228,14,11,0,0,Math.PI*2); x.fill();
+    // Legs
+    x.fillStyle=suitBase;
+    x.beginPath(); x.moveTo(57,228); x.lineTo(95,228); x.lineTo(95,310); x.lineTo(57,310); x.closePath(); x.fill();
+    x.beginPath(); x.moveTo(105,228); x.lineTo(143,228); x.lineTo(143,310); x.lineTo(105,310); x.closePath(); x.fill();
+    x.fillStyle=suitShadow;
+    x.fillRect(86,230,12,78); // inner leg shadow
     // Boots
-    x.beginPath(); x.ellipse(65, 277, 18, 11, 0, 0, Math.PI*2); x.fill();
-    x.beginPath(); x.ellipse(95, 277, 18, 11, 0, 0, Math.PI*2); x.fill();
+    x.fillStyle='rgba(155,158,168,0.95)';
+    x.beginPath(); x.ellipse(72,314,22,12,0,0,Math.PI*2); x.fill();
+    x.beginPath(); x.ellipse(128,314,22,12,0,0,Math.PI*2); x.fill();
+    // Red boot band
+    x.fillStyle=redAccent; x.fillRect(50,305,44,8); x.fillRect(106,305,44,8);
+    // Flag patch (left arm area)
+    x.fillStyle='rgba(180,20,20,0.8)'; x.fillRect(40,140,12,7);
+    x.fillStyle='rgba(240,240,240,0.7)'; x.fillRect(40,144,12,2);
+    x.fillStyle='rgba(20,40,160,0.8)'; x.fillRect(40,140,6,4);
+    // Dust puff if dustFoot
+    if(dustFoot){
+      x.fillStyle='rgba(160,158,150,0.22)';
+      x.beginPath(); x.ellipse(90,322,38,16,0,0,Math.PI*2); x.fill();
+      x.fillStyle='rgba(180,178,168,0.15)';
+      x.beginPath(); x.ellipse(78,318,28,12,0,0,Math.PI*2); x.fill();
+    }
     return new THREE.CanvasTexture(c);
   }
-
-  var astroTex = buildAstronautTex();
-  function addAstronaut(px, pz, scaleX) {
-    var mat = new THREE.SpriteMaterial({ map: astroTex, transparent: true, depthWrite: false });
-    var s = new THREE.Sprite(mat);
-    s.scale.set(scaleX * 1.0, scaleX * 1.9, 1);
-    s.position.set(px, 0.46, pz);
-    scene.add(s);
-    return s;
+  function addAstronaut(px,pz,sc,dust){
+    var mat=new THREE.SpriteMaterial({map:buildSuitTex(dust),transparent:true,depthWrite:false});
+    var s=new THREE.Sprite(mat);
+    s.scale.set(sc*1.1,sc*2.0,1);
+    s.position.set(px,-0.02,pz);
+    scene.add(s); return s;
   }
-  var astro1 = addAstronaut(-1.9, 1.2, 1.05);
-  var astro2 = addAstronaut( 0.7, 0.8, 0.88);
+  // Astronaut 1 - slightly left, closer, larger, kicking dust
+  var astro1=addAstronaut(0.4,2.2,1.18,true);
+  // Astronaut 2 - right, further back, slightly smaller
+  var astro2=addAstronaut(2.0,1.0,0.95,false);
 
-  /* ── LUNAR DUST PARTICLES ── */
-  var DUST = 500;
-  var dPos = new Float32Array(DUST * 3);
-  var dVel = new Float32Array(DUST * 3);
-  for (var di = 0; di < DUST; di++) {
-    dPos[di*3]   = (Math.random()-0.5)*22;
-    dPos[di*3+1] = -0.4 + Math.random()*0.7;
-    dPos[di*3+2] = (Math.random()-0.5)*10 + 3;
-    dVel[di*3]   = (Math.random()-0.5)*0.004;
-    dVel[di*3+1] = 0.001 + Math.random()*0.003;
-    dVel[di*3+2] = (Math.random()-0.5)*0.001;
+  /* ── LUNAR DUST ── */
+  var DUST=600;
+  var dP=new Float32Array(DUST*3),dV=new Float32Array(DUST*3);
+  for(var di=0;di<DUST;di++){
+    dP[di*3]=(Math.random()-0.5)*24; dP[di*3+1]=-0.5+Math.random()*0.65; dP[di*3+2]=(Math.random()-0.5)*12+3;
+    dV[di*3]=(Math.random()-0.5)*0.005; dV[di*3+1]=0.001+Math.random()*0.003; dV[di*3+2]=(Math.random()-0.5)*0.001;
   }
-  var dGeo = new THREE.BufferGeometry();
-  dGeo.setAttribute('position', new THREE.BufferAttribute(dPos.slice(), 3));
-  var dustPoints = new THREE.Points(dGeo, new THREE.PointsMaterial({
-    color: 0x888a8f, size: 0.025, transparent: true, opacity: 0.28, depthWrite: false, sizeAttenuation: true
-  }));
-  scene.add(dustPoints);
+  var dGeo=new THREE.BufferGeometry(); dGeo.setAttribute('position',new THREE.BufferAttribute(dP.slice(),3));
+  var dustPts=new THREE.Points(dGeo,new THREE.PointsMaterial({color:0x9a9890,size:0.022,transparent:true,opacity:0.25,depthWrite:false,sizeAttenuation:true}));
+  scene.add(dustPts);
 
   /* ── LIGHTING ── */
-  scene.add(new THREE.AmbientLight(0x0a1020, 0.35));
-  // Sun light from behind/above Earth — warms Earth limb
-  var sunLight = new THREE.DirectionalLight(0xfff0d8, 2.2);
-  sunLight.position.set(-1.5, 9, -38);
-  scene.add(sunLight);
-  // Faint Earthshine (blue fill) on astronauts / surface
-  var fillLight = new THREE.DirectionalLight(0x2244bb, 0.5);
-  fillLight.position.set(0, 6, 8);
-  scene.add(fillLight);
+  scene.add(new THREE.AmbientLight(0x0a1022,0.32));
+  // Sun behind/above Earth — side-lights astronauts and surface
+  var sunL=new THREE.DirectionalLight(0xfff4e0,2.4);
+  sunL.position.set(-8,10,-40); scene.add(sunL);
+  // Earthshine — soft blue fill on suits from Earth glow
+  var fillL=new THREE.DirectionalLight(0x2255cc,0.55);
+  fillL.position.set(-4,5,8); scene.add(fillL);
 
   /* ── MOUSE PARALLAX ── */
-  var tmx = 0, tmy = 0, cmx = 0, cmy = 0;
-  window.addEventListener('mousemove', function(e){
-    tmx = (e.clientX / window.innerWidth  - 0.5) * 2;
-    tmy = (e.clientY / window.innerHeight - 0.5) * 2;
-  }, { passive: true });
+  var tmx=0,tmy=0,cmx=0,cmy=0;
+  window.addEventListener('mousemove',function(e){
+    tmx=(e.clientX/window.innerWidth-0.5)*2;
+    tmy=(e.clientY/window.innerHeight-0.5)*2;
+  },{passive:true});
 
   /* ── ANIMATE ── */
-  var clock = new THREE.Clock();
-  var dPosAttr = dGeo.attributes.position;
+  var clock=new THREE.Clock();
+  var dPA=dGeo.attributes.position;
 
   function tick(){
-    var t = clock.getElapsedTime();
-    sMat.uniforms.uTime.value  = t;
-    coronaMat.uniforms.uTime.value = t;
-
-    // Earth + clouds rotation
-    earth.rotation.y  = t * 0.022;
-    clouds.rotation.y = t * 0.018;
-
-    // Eclipse shadow transit across Earth (slow 3-minute loop)
-    var sp = t * 0.008;
-    shadowMesh.position.set(
-      earth.position.x + Math.cos(sp) * (EARTH_R * 0.7),
-      earth.position.y + Math.sin(sp * 0.55) * (EARTH_R * 0.35),
-      earth.position.z + 0.55
-    );
-
-    // Dust drift
-    for (var di = 0; di < DUST; di++) {
-      var dx = dPosAttr.getX(di) + dVel[di*3];
-      var dy = dPosAttr.getY(di) + dVel[di*3+1];
-      var dz = dPosAttr.getZ(di) + dVel[di*3+2];
-      if (dy > 0.6){ dy = -0.4; dx = (Math.random()-0.5)*22; }
-      if (Math.abs(dx) > 11){ dx *= -0.9; }
-      dPosAttr.setXYZ(di, dx, dy, dz);
+    var t=clock.getElapsedTime();
+    sMat.uniforms.uT.value=t; cMat.uniforms.uT.value=t;
+    earth.rotation.y=t*0.020; clouds.rotation.y=t*0.016;
+    // Eclipse shadow transit
+    var sp=t*0.007;
+    shadow.position.set(earth.position.x+Math.cos(sp)*ER*0.62,earth.position.y+Math.sin(sp*0.5)*ER*0.3,earth.position.z+0.7);
+    // Dust
+    for(var di=0;di<DUST;di++){
+      var dx=dPA.getX(di)+dV[di*3],dy=dPA.getY(di)+dV[di*3+1],dz=dPA.getZ(di)+dV[di*3+2];
+      if(dy>0.6){dy=-0.5;dx=(Math.random()-0.5)*24;}
+      if(Math.abs(dx)>12){dx*=-0.9;}
+      dPA.setXYZ(di,dx,dy,dz);
     }
-    dPosAttr.needsUpdate = true;
-
-    // Astronaut subtle breathing bob
-    astro1.position.y = 0.46 + Math.sin(t * 0.45) * 0.018;
-    astro2.position.y = 0.46 + Math.sin(t * 0.45 + 1.4) * 0.018;
-
-    // Smooth mouse parallax on camera
-    cmx += (tmx - cmx) * 0.032;
-    cmy += (tmy - cmy) * 0.032;
-    camera.position.x = cmx * 0.5;
-    camera.position.y = 1.1 - cmy * 0.2;
-    camera.lookAt(-0.4 + cmx * 0.15, 3.5 - cmy * 0.15, -5);
-
-    renderer.render(scene, camera);
+    dPA.needsUpdate=true;
+    // Gentle suit bob
+    astro1.position.y=-0.02+Math.sin(t*0.42)*0.016;
+    astro2.position.y=-0.02+Math.sin(t*0.42+1.3)*0.016;
+    // Camera parallax
+    cmx+=(tmx-cmx)*0.028; cmy+=(tmy-cmy)*0.028;
+    camera.position.x=2.8+cmx*0.4;
+    camera.position.y=1.0-cmy*0.18;
+    camera.lookAt(-1.5+cmx*0.12,2.8-cmy*0.1,-8);
+    renderer.render(scene,camera);
     requestAnimationFrame(tick);
   }
   tick();
-
-  window.addEventListener('resize', function(){
-    camera.aspect = window.innerWidth / window.innerHeight;
+  window.addEventListener('resize',function(){
+    camera.aspect=window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth,window.innerHeight);
   });
 })();
 
-/* simple scroll-hint reveal */
+/* scroll hint reveal */
 (function(){
-  gsap.to('#scrollHint', { opacity: 1, duration: 1.2, delay: 1.8, ease: 'power2.out' });
+  gsap.to('#scrollHint',{opacity:1,duration:1.2,delay:2.0,ease:'power2.out'});
 })();
 
 /* ============================================================
