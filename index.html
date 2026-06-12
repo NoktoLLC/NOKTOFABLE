@@ -112,40 +112,13 @@ nav.scrolled{
 
 /* ---------- Hero ---------- */
 .hero{
-  position:relative;height:100vh;min-height:640px;
-  display:flex;align-items:flex-end;justify-content:center;
-  overflow:hidden;
+  position:relative;height:100vh;overflow:hidden;
 }
-#eclipse-canvas{
+#hero-canvas{
   position:absolute;inset:0;width:100%;height:100%;display:block;
 }
-.hero-content{
-  position:relative;z-index:5;text-align:center;padding:0 6vw 10vh;max-width:1100px;
-  background:radial-gradient(ellipse 80% 70% at 50% 80%,rgba(0,0,0,0.75) 0%,transparent 100%);
-}
-.hero-eyebrow{
-  font-family:'Space Mono',monospace;font-size:0.85rem;letter-spacing:0.5em;
-  color:var(--red-bright);text-transform:uppercase;margin-bottom:1.6rem;
-  opacity:0;
-}
-.hero-title{
-  font-size:clamp(2.4rem,7vw,5.6rem);font-weight:700;line-height:1.05;
-  letter-spacing:-0.02em;margin-bottom:1.8rem;
-  text-shadow:0 2px 24px rgba(0,0,0,0.9);
-}
-.hero-title .line{display:block;overflow:hidden;}
-.hero-title .char{display:inline-block;opacity:0;transform:translateY(110%) rotate(6deg);}
-.hero-title .accent{
-  color:var(--white);
-  text-shadow:0 0 40px rgba(226,23,23,0.9),0 2px 24px rgba(0,0,0,0.9);
-}
-.hero-sub{
-  font-size:clamp(1rem,1.6vw,1.25rem);color:rgba(255,255,255,0.9);
-  max-width:680px;margin:0 auto 2.6rem;line-height:1.65;font-weight:300;
-  text-shadow:0 1px 12px rgba(0,0,0,0.8);
-  opacity:0;
-}
-.hero-actions{display:flex;gap:1.2rem;justify-content:center;flex-wrap:wrap;opacity:0;}
+
+
 .btn-primary{
   display:inline-block;padding:1rem 2.4rem;border-radius:100px;border:none;
   background:linear-gradient(135deg,var(--red),var(--red-bright));
@@ -176,14 +149,7 @@ nav.scrolled{
   0%,100%{transform:translateY(0);opacity:.5;}
   50%{transform:translateY(8px);opacity:1;}
 }
-.hero-vignette{
-  position:absolute;inset:0;z-index:2;pointer-events:none;
-  background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.55) 100%);
-}
-.hero-fade{
-  position:absolute;bottom:0;left:0;right:0;height:24vh;z-index:3;pointer-events:none;
-  background:linear-gradient(to bottom,transparent,var(--black));
-}
+
 
 /* ---------- Section base ---------- */
 section{position:relative;}
@@ -596,27 +562,13 @@ footer{
   </div>
 </nav>
 
-<!-- HERO -->
+<!-- HERO — pure cinematic animation, no text -->
 <header class="hero" id="hero">
-  <canvas id="eclipse-canvas"></canvas>
-  <div class="hero-vignette"></div>
-  <div class="hero-fade"></div>
-  <div class="hero-content">
-    <div class="hero-eyebrow" id="heroEyebrow">Nokto Group</div>
-    <h1 class="hero-title" id="heroTitle">
-      <span class="line" data-text="Eclipse the Competition."></span>
-      <span class="line accent-line" data-text="That's the Nokto Effect." data-accent="true"></span>
-    </h1>
-    <p class="hero-sub" id="heroSub">Professional websites, branding, photography, signage, and strategy for great businesses that deserve to look like great businesses.</p>
-    <div class="hero-actions" id="heroActions">
-      <a href="#contact" class="btn-primary magnetic">Get Started</a>
-      <a href="#services" class="btn-ghost magnetic">Explore Services</a>
-    </div>
-  </div>
+  <canvas id="hero-canvas"></canvas>
   <div class="scroll-hint" id="scrollHint">
     <span>Scroll</span>
     <svg width="16" height="22" viewBox="0 0 16 22" fill="none">
-      <path d="M8 2v16M2 12l6 6 6-6" stroke="#ff4040" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 2v16M2 12l6 6 6-6" stroke="rgba(255,255,255,0.5)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </div>
 </header>
@@ -891,229 +843,393 @@ gsap.registerPlugin(ScrollTrigger);
 var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ============================================================
-   THREE.JS — ECLIPSE HERO
+   THREE.JS — MOON SURFACE / EARTH ECLIPSE HERO
+   Two astronauts on the Moon. Earth rotates in deep space.
+   Solar corona glows behind. Eclipse shadow transits Earth.
    ============================================================ */
-(function initEclipse(){
+(function initMoonHero(){
   if (typeof THREE === 'undefined') return;
-  var canvas = document.getElementById('eclipse-canvas');
-  var renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true, alpha:false});
+  var cvs = document.getElementById('hero-canvas');
+  var renderer = new THREE.WebGLRenderer({ canvas: cvs, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.85;
 
   var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
-  scene.fog = new THREE.FogExp2(0x000000, 0.0009);
+  scene.background = new THREE.Color(0x00000a);
 
-  var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-  camera.position.set(0, 0, 60);
+  var camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.01, 5000);
+  camera.position.set(0, 1.1, 6);
+  camera.lookAt(0, 3.5, -5);
 
-  /* ---- Star field: 2600 stars ---- */
-  var starCount = 2600;
-  var starGeo = new THREE.BufferGeometry();
-  var starPos = new Float32Array(starCount * 3);
-  var starSize = new Float32Array(starCount);
-  for (var i = 0; i < starCount; i++) {
-    starPos[i*3]   = (Math.random() - 0.5) * 900;
-    starPos[i*3+1] = (Math.random() - 0.5) * 600;
-    starPos[i*3+2] = -Math.random() * 800 + 50;
-    starSize[i] = Math.random() * 1.8 + 0.4;
+  /* ── STAR FIELD ── */
+  var N = 3200;
+  var sPos = new Float32Array(N * 3);
+  var sAlpha = new Float32Array(N);
+  for (var i = 0; i < N; i++) {
+    var theta = Math.random() * Math.PI * 2;
+    var phi = Math.acos(2 * Math.random() - 1);
+    var r = 600 + Math.random() * 200;
+    sPos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    sPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    sPos[i*3+2] = r * Math.cos(phi);
+    sAlpha[i] = 0.4 + Math.random() * 0.6;
   }
-  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-  starGeo.setAttribute('aSize', new THREE.BufferAttribute(starSize, 1));
-  var starMat = new THREE.ShaderMaterial({
+  var sGeo = new THREE.BufferGeometry();
+  sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+  sGeo.setAttribute('aAlpha', new THREE.BufferAttribute(sAlpha, 1));
+  var sMat = new THREE.ShaderMaterial({
     uniforms: { uTime: { value: 0 } },
     vertexShader: [
-      'attribute float aSize;',
-      'uniform float uTime;',
-      'varying float vTwinkle;',
+      'attribute float aAlpha; varying float vA; uniform float uTime;',
       'void main(){',
-      '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
-      '  vTwinkle = 0.65 + 0.35 * sin(uTime * 2.0 + position.x * 12.1 + position.y * 7.3);',
-      '  gl_PointSize = aSize * (220.0 / -mv.z);',
-      '  gl_Position = projectionMatrix * mv;',
+      '  vA = aAlpha*(0.65+0.35*sin(uTime*1.8+position.x*0.009+position.y*0.013));',
+      '  vec4 mv=modelViewMatrix*vec4(position,1.0);',
+      '  gl_PointSize=1.2+aAlpha*1.1;',
+      '  gl_Position=projectionMatrix*mv;',
       '}'
     ].join('\n'),
     fragmentShader: [
-      'varying float vTwinkle;',
+      'varying float vA;',
       'void main(){',
-      '  float d = length(gl_PointCoord - vec2(0.5));',
-      '  if (d > 0.5) discard;',
-      '  float a = smoothstep(0.5, 0.0, d) * vTwinkle;',
-      '  gl_FragColor = vec4(1.0, 1.0, 1.0, a);',
+      '  float d=length(gl_PointCoord-vec2(0.5));',
+      '  if(d>0.5)discard;',
+      '  gl_FragColor=vec4(0.88,0.92,1.0,vA*(1.0-d*1.6));',
       '}'
     ].join('\n'),
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
   });
-  var stars = new THREE.Points(starGeo, starMat);
-  scene.add(stars);
+  scene.add(new THREE.Points(sGeo, sMat));
 
-  /* ---- Eclipse group ---- */
-  var eclipse = new THREE.Group();
-  eclipse.position.set(0, 26, -40);
-  scene.add(eclipse);
-
-  var R = 9;
-
-  /* Sun glow disc behind the moon — shader-based radial corona glow */
-  var glowMat = new THREE.ShaderMaterial({
+  /* ── SOLAR CORONA (large glow plane, far behind Earth) ── */
+  var coronaMat = new THREE.ShaderMaterial({
     uniforms: { uTime: { value: 0 } },
-    vertexShader: [
-      'varying vec2 vUv;',
-      'void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }'
-    ].join('\n'),
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
     fragmentShader: [
-      'uniform float uTime;',
-      'varying vec2 vUv;',
+      'uniform float uTime; varying vec2 vUv;',
       'void main(){',
-      '  vec2 c = vUv - vec2(0.5);',
-      '  float d = length(c) * 2.0;',
-      '  float ang = atan(c.y, c.x);',
-      '  float flare = 0.04 * sin(ang * 9.0 + uTime * 0.7) + 0.03 * sin(ang * 17.0 - uTime * 1.1);',
-      '  float ring = smoothstep(0.46, 0.40, abs(d - 0.42 - flare));',
-      '  float halo = exp(-pow(max(d - 0.40, 0.0) * 3.4, 1.4));',
-      '  vec3 hot = vec3(1.0, 0.92, 0.78);',
-      '  vec3 red = vec3(0.886, 0.09, 0.09);',
-      '  vec3 col = mix(red, hot, ring * 0.9) * (halo + ring * 1.6);',
-      '  col += vec3(1.0, 0.25, 0.25) * pow(max(1.0 - d, 0.0), 6.0) * 2.0;',
-      '  float a = clamp(halo * 1.2 + ring, 0.0, 1.0);',
-      '  gl_FragColor = vec4(col, a);',
+      '  vec2 c=vUv-0.5;',
+      '  float d=length(c);',
+      '  float ang=atan(c.y,c.x);',
+      '  float rays=0.06*sin(ang*11.0+uTime*0.4)*sin(ang*6.0-uTime*0.25);',
+      '  float core=exp(-pow(max(d-0.06+rays,0.0)*6.5,1.1));',
+      '  float halo=exp(-pow(max(d-0.03,0.0)*2.2,0.85))*0.55;',
+      '  float streaks=0.03*exp(-pow(max(d-0.1,0.0)*4.0,1.0))*sin(ang*18.0+uTime*0.6);',
+      '  vec3 hot=vec3(1.0,0.96,0.82);',
+      '  vec3 warm=vec3(1.0,0.38,0.08);',
+      '  vec3 col=mix(warm,hot,smoothstep(0.25,0.0,d))*(1.4+core+streaks);',
+      '  float a=clamp(core+halo+streaks,0.0,1.0);',
+      '  gl_FragColor=vec4(col,a*0.82);',
       '}'
     ].join('\n'),
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
   });
-  var glow = new THREE.Mesh(new THREE.PlaneGeometry(R*5.2, R*5.2), glowMat);
-  glow.position.z = -2;
-  eclipse.add(glow);
+  var coronaMesh = new THREE.Mesh(new THREE.PlaneGeometry(32, 32), coronaMat);
+  coronaMesh.position.set(-0.4, 4.8, -32);
+  scene.add(coronaMesh);
 
-  /* Dark moon disc occulting the sun */
-  var moon = new THREE.Mesh(
-    new THREE.SphereGeometry(R, 64, 64),
-    new THREE.MeshBasicMaterial({ color: 0x000000 })
-  );
-  eclipse.add(moon);
-
-  /* Thin rim of light around the moon edge */
-  var rimMat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: [
-      'varying vec2 vUv;',
-      'void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }'
-    ].join('\n'),
-    fragmentShader: [
-      'uniform float uTime;',
-      'varying vec2 vUv;',
-      'void main(){',
-      '  vec2 c = vUv - vec2(0.5);',
-      '  float d = length(c) * 2.0;',
-      '  float rim = smoothstep(0.965, 1.0, d) * smoothstep(1.04, 1.0, d);',
-      '  float ang = atan(c.y, c.x);',
-      '  float bead = pow(max(sin(ang * 1.0 + 2.2), 0.0), 24.0) * (0.7 + 0.3 * sin(uTime * 1.4));',
-      '  vec3 col = vec3(1.0, 0.95, 0.85) * rim * 2.2 + vec3(1.0, 0.85, 0.6) * bead * rim * 4.0;',
-      '  gl_FragColor = vec4(col, rim);',
-      '}'
-    ].join('\n'),
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  });
-  var rim = new THREE.Mesh(new THREE.PlaneGeometry(R*2.12, R*2.12), rimMat);
-  rim.position.z = 0.5;
-  eclipse.add(rim);
-
-  /* Corona particle system — red/orange particles radiating outward */
-  var pCount = 1600;
-  var pGeo = new THREE.BufferGeometry();
-  var pPos = new Float32Array(pCount * 3);
-  var pData = new Float32Array(pCount * 4); // angle, baseRadius, speed, size
-  for (var j = 0; j < pCount; j++) {
-    var ang = Math.random() * Math.PI * 2;
-    var rad = R * (1.02 + Math.random() * 0.25);
-    pData[j*4]   = ang;
-    pData[j*4+1] = rad;
-    pData[j*4+2] = 2.2 + Math.random() * 5.5;   // outward speed
-    pData[j*4+3] = 1.0 + Math.random() * 2.6;   // size
-    pPos[j*3] = Math.cos(ang) * rad;
-    pPos[j*3+1] = Math.sin(ang) * rad;
-    pPos[j*3+2] = (Math.random() - 0.5) * 2;
+  /* ── EARTH (procedural canvas texture) ── */
+  function buildEarthTex() {
+    var c = document.createElement('canvas');
+    c.width = 2048; c.height = 1024;
+    var x = c.getContext('2d');
+    // Ocean base
+    var og = x.createLinearGradient(0,0,0,1024);
+    og.addColorStop(0,'#0b2e60'); og.addColorStop(0.35,'#1a4f90');
+    og.addColorStop(0.65,'#1a4f90'); og.addColorStop(1,'#0b2e60');
+    x.fillStyle=og; x.fillRect(0,0,2048,1024);
+    // Continents
+    x.fillStyle='#2e6b1a';
+    // North America
+    x.beginPath(); x.moveTo(270,175); x.bezierCurveTo(340,155,420,148,455,195);
+    x.bezierCurveTo(475,240,470,310,450,380); x.bezierCurveTo(430,450,390,500,355,530);
+    x.bezierCurveTo(330,555,295,545,272,510); x.bezierCurveTo(248,470,242,400,248,330);
+    x.bezierCurveTo(255,265,250,210,270,175); x.closePath(); x.fill();
+    // Greenland
+    x.beginPath(); x.ellipse(360,110,45,35,0.2,0,Math.PI*2); x.fill();
+    // South America
+    x.beginPath(); x.moveTo(355,545); x.bezierCurveTo(390,520,440,525,465,565);
+    x.bezierCurveTo(490,615,488,700,465,775); x.bezierCurveTo(445,840,400,865,365,848);
+    x.bezierCurveTo(330,825,318,760,320,690); x.bezierCurveTo(325,625,335,580,355,545);
+    x.closePath(); x.fill();
+    // Europe
+    x.beginPath(); x.moveTo(885,165); x.bezierCurveTo(935,148,985,155,1010,195);
+    x.bezierCurveTo(1030,230,1022,285,995,318); x.bezierCurveTo(965,348,920,352,890,330);
+    x.bezierCurveTo(862,308,858,265,868,225); x.bezierCurveTo(872,195,870,175,885,165);
+    x.closePath(); x.fill();
+    // Scandinavia (thin peninsula)
+    x.beginPath(); x.moveTo(920,115); x.bezierCurveTo(945,110,968,125,972,155);
+    x.bezierCurveTo(975,185,960,205,940,210); x.bezierCurveTo(920,210,908,190,910,165);
+    x.closePath(); x.fill();
+    // Africa
+    x.beginPath(); x.moveTo(878,295); x.bezierCurveTo(930,275,1000,285,1040,330);
+    x.bezierCurveTo(1075,375,1080,460,1070,560); x.bezierCurveTo(1060,665,1020,745,975,790);
+    x.bezierCurveTo(942,820,905,820,880,790); x.bezierCurveTo(852,755,842,680,845,590);
+    x.bezierCurveTo(848,490,852,380,878,295); x.closePath(); x.fill();
+    // Asia (large)
+    x.beginPath(); x.moveTo(1005,145); x.bezierCurveTo(1120,118,1280,112,1420,135);
+    x.bezierCurveTo(1540,155,1610,200,1630,260); x.bezierCurveTo(1645,315,1620,375,1570,405);
+    x.bezierCurveTo(1510,438,1420,448,1330,445); x.bezierCurveTo(1230,440,1150,430,1075,410);
+    x.bezierCurveTo(1010,392,968,360,955,310); x.bezierCurveTo(942,260,960,188,1005,145);
+    x.closePath(); x.fill();
+    // India
+    x.beginPath(); x.moveTo(1095,395); x.bezierCurveTo(1130,388,1165,400,1175,440);
+    x.bezierCurveTo(1182,475,1165,520,1130,550); x.bezierCurveTo(1108,568,1082,562,1068,538);
+    x.bezierCurveTo(1050,510,1052,462,1070,428); x.closePath(); x.fill();
+    // Southeast Asia / Indonesia
+    x.beginPath(); x.ellipse(1480,440,65,28,0.3,0,Math.PI*2); x.fill();
+    x.beginPath(); x.ellipse(1560,460,45,22,0.2,0,Math.PI*2); x.fill();
+    // Australia
+    x.beginPath(); x.moveTo(1385,575); x.bezierCurveTo(1455,555,1535,565,1575,610);
+    x.bezierCurveTo(1610,650,1612,720,1585,775); x.bezierCurveTo(1555,830,1480,852,1415,838);
+    x.bezierCurveTo(1355,820,1325,768,1328,705); x.bezierCurveTo(1332,648,1348,595,1385,575);
+    x.closePath(); x.fill();
+    // Antarctica/ice caps
+    x.fillStyle='#cde4f5';
+    x.beginPath(); x.ellipse(1024,48,520,52,0,0,Math.PI*2); x.fill();
+    x.beginPath(); x.ellipse(1024,976,460,48,0,0,Math.PI*2); x.fill();
+    // Desert tones
+    x.fillStyle='rgba(185,140,60,0.28)';
+    x.beginPath(); x.ellipse(960,340,90,55,0.1,0,Math.PI*2); x.fill(); // Sahara
+    x.beginPath(); x.ellipse(1158,310,70,40,0,0,Math.PI*2); x.fill(); // Middle East
+    // Ocean shimmer streaks
+    x.fillStyle='rgba(60,110,200,0.15)';
+    for (var j=0;j<35;j++){
+      x.beginPath();
+      var sx=Math.random()*2048; var sy=Math.random()*1024;
+      x.ellipse(sx,sy,Math.random()*80+20,Math.random()*12+4,Math.random()*Math.PI,0,Math.PI*2);
+      x.fill();
+    }
+    return new THREE.CanvasTexture(c);
   }
-  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-  pGeo.setAttribute('aData', new THREE.BufferAttribute(pData, 4));
-  var pMat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
+
+  function buildCloudTex() {
+    var c = document.createElement('canvas');
+    c.width = 1024; c.height = 512;
+    var x = c.getContext('2d');
+    x.clearRect(0, 0, 1024, 512);
+    for (var i = 0; i < 420; i++) {
+      var cx2 = Math.random()*1024, cy = Math.random()*512;
+      var cr = Math.random()*38+8;
+      var g = x.createRadialGradient(cx2,cy,0,cx2,cy,cr);
+      g.addColorStop(0,'rgba(255,255,255,0.72)');
+      g.addColorStop(1,'rgba(255,255,255,0)');
+      x.fillStyle = g;
+      x.beginPath();
+      x.ellipse(cx2, cy, cr*(1+Math.random()*0.8), cr*0.45, Math.random()*Math.PI, 0, Math.PI*2);
+      x.fill();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+
+  var EARTH_R = 3.8;
+  var earthGeo = new THREE.SphereGeometry(EARTH_R, 72, 72);
+  var earthMat = new THREE.MeshPhongMaterial({
+    map: buildEarthTex(),
+    shininess: 8,
+    specular: new THREE.Color(0x1a3a6a)
+  });
+  var earth = new THREE.Mesh(earthGeo, earthMat);
+  earth.position.set(-0.4, 4.8, -26);
+  scene.add(earth);
+
+  // Atmosphere rim glow
+  var atmosMat = new THREE.ShaderMaterial({
     vertexShader: [
-      'attribute vec4 aData;',
-      'uniform float uTime;',
-      'varying float vLife;',
-      'varying float vHot;',
+      'varying vec3 vN; varying vec3 vVD;',
       'void main(){',
-      '  float ang = aData.x;',
-      '  float baseR = aData.y;',
-      '  float speed = aData.z;',
-      '  float cycle = 9.0;',
-      '  float t = mod(uTime * 0.7 + ang * 13.7, cycle) / cycle;',
-      '  float r = baseR + t * speed * 4.5;',
-      '  float wob = sin(uTime * 1.3 + ang * 6.0) * 0.35;',
-      '  vec3 p = vec3(cos(ang + wob * 0.04) * r, sin(ang + wob * 0.04) * r, position.z + wob);',
-      '  vLife = 1.0 - t;',
-      '  vHot = step(0.85, fract(ang * 7.31));',
-      '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
-      '  gl_PointSize = aData.w * vLife * (160.0 / -mv.z);',
-      '  gl_Position = projectionMatrix * mv;',
+      '  vN=normalize(normalMatrix*normal);',
+      '  vec4 mv=modelViewMatrix*vec4(position,1.0);',
+      '  vVD=normalize(-mv.xyz);',
+      '  gl_Position=projectionMatrix*mv;',
       '}'
     ].join('\n'),
     fragmentShader: [
-      'varying float vLife;',
-      'varying float vHot;',
+      'varying vec3 vN; varying vec3 vVD;',
       'void main(){',
-      '  float d = length(gl_PointCoord - vec2(0.5));',
-      '  if (d > 0.5) discard;',
-      '  float a = smoothstep(0.5, 0.0, d) * vLife * 0.85;',
-      '  vec3 red = vec3(0.886, 0.09, 0.09);',
-      '  vec3 orange = vec3(1.0, 0.45, 0.15);',
-      '  vec3 col = mix(red, orange, vHot * 0.8 + d);',
-      '  gl_FragColor = vec4(col, a);',
+      '  float rim=1.0-abs(dot(vN,vVD));',
+      '  rim=pow(rim,2.2);',
+      '  vec3 col=mix(vec3(0.08,0.32,0.9),vec3(0.35,0.65,1.0),rim);',
+      '  gl_FragColor=vec4(col,rim*0.65);',
       '}'
     ].join('\n'),
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide
   });
-  var corona = new THREE.Points(pGeo, pMat);
-  eclipse.add(corona);
+  var atmos = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R+0.22, 72, 72), atmosMat);
+  atmos.position.copy(earth.position);
+  scene.add(atmos);
 
-  /* ---- Mouse parallax ---- */
-  var mouseX = 0, mouseY = 0, targetX = 0, targetY = 0;
+  // Clouds
+  var cloudMat = new THREE.MeshPhongMaterial({
+    map: buildCloudTex(), transparent: true, opacity: 0.52, depthWrite: false
+  });
+  var clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R+0.08, 72, 72), cloudMat);
+  clouds.position.copy(earth.position);
+  scene.add(clouds);
+
+  // Eclipse shadow (Moon umbra on Earth surface)
+  var shadowMat = new THREE.MeshBasicMaterial({ color: 0x000005, transparent: true, opacity: 0.86 });
+  var shadowMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R*0.52, 36, 36), shadowMat);
+  shadowMesh.position.set(earth.position.x, earth.position.y, earth.position.z + 0.7);
+  scene.add(shadowMesh);
+
+  /* ── MOON SURFACE (foreground terrain) ── */
+  var mGeo = new THREE.PlaneGeometry(200, 100, 80, 30);
+  var mPos = mGeo.attributes.position;
+  for (var vi = 0; vi < mPos.count; vi++) {
+    var vx = mPos.getX(vi), vy = mPos.getY(vi);
+    var bump = Math.sin(vx*0.28)*0.38 + Math.sin(vx*0.72+1.2)*0.22
+             + Math.sin(vx*1.5+vy*0.3)*0.12 + (Math.random()-0.5)*0.08;
+    // Flatten extreme back rows (horizon line)
+    var fade = Math.max(0, Math.min(1, (vy+50)/20));
+    mPos.setZ(vi, bump * fade);
+  }
+  mPos.needsUpdate = true; mGeo.computeVertexNormals();
+  var moonSurface = new THREE.Mesh(mGeo, new THREE.MeshStandardMaterial({
+    color: 0x1a1a1e, roughness: 0.96, metalness: 0.0
+  }));
+  moonSurface.rotation.x = -Math.PI / 2;
+  moonSurface.position.y = -0.55;
+  scene.add(moonSurface);
+
+  /* ── ASTRONAUT SPRITES ── */
+  function buildAstronautTex() {
+    var c = document.createElement('canvas');
+    c.width = 160; c.height = 300;
+    var x = c.getContext('2d');
+    x.clearRect(0, 0, 160, 300);
+    x.fillStyle = 'rgba(8,8,10,0.95)';
+    // Helmet
+    x.beginPath(); x.arc(80, 72, 38, 0, Math.PI*2); x.fill();
+    // Visor (slight blue tint)
+    x.fillStyle = 'rgba(20,50,110,0.4)';
+    x.beginPath(); x.ellipse(80, 70, 24, 20, 0, 0, Math.PI*2); x.fill();
+    x.fillStyle = 'rgba(8,8,10,0.95)';
+    // Neck connector
+    x.fillRect(68, 106, 24, 12);
+    // Torso
+    x.beginPath();
+    x.moveTo(50,118); x.lineTo(110,118);
+    x.bezierCurveTo(115,118,118,122,118,128);
+    x.lineTo(118,195); x.bezierCurveTo(118,201,114,205,108,205);
+    x.lineTo(52,205); x.bezierCurveTo(46,205,42,201,42,195);
+    x.lineTo(42,128); x.bezierCurveTo(42,122,45,118,50,118);
+    x.closePath(); x.fill();
+    // Backpack
+    x.fillRect(108, 122, 20, 58);
+    // Left arm
+    x.beginPath(); x.roundRect
+      ? x.roundRect(22, 120, 22, 68, 8)
+      : (function(){ x.rect(22,120,22,68); })();
+    x.closePath(); x.fill();
+    // Right arm
+    x.beginPath(); x.fillRect(116, 120, 22, 68);
+    // Gloves
+    x.beginPath(); x.ellipse(33, 193, 13, 10, 0, 0, Math.PI*2); x.fill();
+    x.beginPath(); x.ellipse(127, 193, 13, 10, 0, 0, Math.PI*2); x.fill();
+    // Left leg
+    x.fillRect(52, 203, 26, 72);
+    // Right leg
+    x.fillRect(82, 203, 26, 72);
+    // Boots
+    x.beginPath(); x.ellipse(65, 277, 18, 11, 0, 0, Math.PI*2); x.fill();
+    x.beginPath(); x.ellipse(95, 277, 18, 11, 0, 0, Math.PI*2); x.fill();
+    return new THREE.CanvasTexture(c);
+  }
+
+  var astroTex = buildAstronautTex();
+  function addAstronaut(px, pz, scaleX) {
+    var mat = new THREE.SpriteMaterial({ map: astroTex, transparent: true, depthWrite: false });
+    var s = new THREE.Sprite(mat);
+    s.scale.set(scaleX * 1.0, scaleX * 1.9, 1);
+    s.position.set(px, 0.46, pz);
+    scene.add(s);
+    return s;
+  }
+  var astro1 = addAstronaut(-1.9, 1.2, 1.05);
+  var astro2 = addAstronaut( 0.7, 0.8, 0.88);
+
+  /* ── LUNAR DUST PARTICLES ── */
+  var DUST = 500;
+  var dPos = new Float32Array(DUST * 3);
+  var dVel = new Float32Array(DUST * 3);
+  for (var di = 0; di < DUST; di++) {
+    dPos[di*3]   = (Math.random()-0.5)*22;
+    dPos[di*3+1] = -0.4 + Math.random()*0.7;
+    dPos[di*3+2] = (Math.random()-0.5)*10 + 3;
+    dVel[di*3]   = (Math.random()-0.5)*0.004;
+    dVel[di*3+1] = 0.001 + Math.random()*0.003;
+    dVel[di*3+2] = (Math.random()-0.5)*0.001;
+  }
+  var dGeo = new THREE.BufferGeometry();
+  dGeo.setAttribute('position', new THREE.BufferAttribute(dPos.slice(), 3));
+  var dustPoints = new THREE.Points(dGeo, new THREE.PointsMaterial({
+    color: 0x888a8f, size: 0.025, transparent: true, opacity: 0.28, depthWrite: false, sizeAttenuation: true
+  }));
+  scene.add(dustPoints);
+
+  /* ── LIGHTING ── */
+  scene.add(new THREE.AmbientLight(0x0a1020, 0.35));
+  // Sun light from behind/above Earth — warms Earth limb
+  var sunLight = new THREE.DirectionalLight(0xfff0d8, 2.2);
+  sunLight.position.set(-1.5, 9, -38);
+  scene.add(sunLight);
+  // Faint Earthshine (blue fill) on astronauts / surface
+  var fillLight = new THREE.DirectionalLight(0x2244bb, 0.5);
+  fillLight.position.set(0, 6, 8);
+  scene.add(fillLight);
+
+  /* ── MOUSE PARALLAX ── */
+  var tmx = 0, tmy = 0, cmx = 0, cmy = 0;
   window.addEventListener('mousemove', function(e){
-    targetX = (e.clientX / window.innerWidth - 0.5) * 2;
-    targetY = (e.clientY / window.innerHeight - 0.5) * 2;
-  }, {passive:true});
+    tmx = (e.clientX / window.innerWidth  - 0.5) * 2;
+    tmy = (e.clientY / window.innerHeight - 0.5) * 2;
+  }, { passive: true });
 
-  /* ---- Animate ---- */
+  /* ── ANIMATE ── */
   var clock = new THREE.Clock();
-  var camZBase = 60;
+  var dPosAttr = dGeo.attributes.position;
+
   function tick(){
     var t = clock.getElapsedTime();
-    starMat.uniforms.uTime.value = t;
-    glowMat.uniforms.uTime.value = t;
-    rimMat.uniforms.uTime.value = t;
-    pMat.uniforms.uTime.value = t;
+    sMat.uniforms.uTime.value  = t;
+    coronaMat.uniforms.uTime.value = t;
 
-    if (!prefersReduced) {
-      mouseX += (targetX - mouseX) * 0.04;
-      mouseY += (targetY - mouseY) * 0.04;
-      /* slow forward drift through the star field, looping subtly */
-      var drift = (t * 1.2) % 30;
-      camera.position.z = camZBase - drift * 0.18;
-      camera.position.x = mouseX * 2;
-      camera.position.y = -mouseY * 1.2;
-      camera.lookAt(eclipse.position);
-      stars.rotation.z = t * 0.004;
-      eclipse.rotation.z = Math.sin(t * 0.08) * 0.05;
+    // Earth + clouds rotation
+    earth.rotation.y  = t * 0.022;
+    clouds.rotation.y = t * 0.018;
+
+    // Eclipse shadow transit across Earth (slow 3-minute loop)
+    var sp = t * 0.008;
+    shadowMesh.position.set(
+      earth.position.x + Math.cos(sp) * (EARTH_R * 0.7),
+      earth.position.y + Math.sin(sp * 0.55) * (EARTH_R * 0.35),
+      earth.position.z + 0.55
+    );
+
+    // Dust drift
+    for (var di = 0; di < DUST; di++) {
+      var dx = dPosAttr.getX(di) + dVel[di*3];
+      var dy = dPosAttr.getY(di) + dVel[di*3+1];
+      var dz = dPosAttr.getZ(di) + dVel[di*3+2];
+      if (dy > 0.6){ dy = -0.4; dx = (Math.random()-0.5)*22; }
+      if (Math.abs(dx) > 11){ dx *= -0.9; }
+      dPosAttr.setXYZ(di, dx, dy, dz);
     }
+    dPosAttr.needsUpdate = true;
+
+    // Astronaut subtle breathing bob
+    astro1.position.y = 0.46 + Math.sin(t * 0.45) * 0.018;
+    astro2.position.y = 0.46 + Math.sin(t * 0.45 + 1.4) * 0.018;
+
+    // Smooth mouse parallax on camera
+    cmx += (tmx - cmx) * 0.032;
+    cmy += (tmy - cmy) * 0.032;
+    camera.position.x = cmx * 0.5;
+    camera.position.y = 1.1 - cmy * 0.2;
+    camera.lookAt(-0.4 + cmx * 0.15, 3.5 - cmy * 0.15, -5);
+
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
@@ -1126,35 +1242,9 @@ var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').match
   });
 })();
 
-/* ============================================================
-   HERO TEXT — letter-by-letter reveal
-   ============================================================ */
-(function heroIntro(){
-  var lines = document.querySelectorAll('.hero-title .line');
-  lines.forEach(function(line){
-    var text = line.getAttribute('data-text');
-    var accent = line.getAttribute('data-accent') === 'true';
-    var frag = document.createDocumentFragment();
-    text.split('').forEach(function(ch){
-      var span = document.createElement('span');
-      span.className = 'char' + (accent ? ' accent' : '');
-      span.textContent = ch === ' ' ? '\u00A0' : ch;
-      frag.appendChild(span);
-    });
-    line.appendChild(frag);
-  });
-
-  var tl = gsap.timeline({delay: 0.35});
-  tl.to('#heroEyebrow', {opacity: 1, duration: 1, ease: 'power2.out'})
-    .to('.hero-title .char', {
-      opacity: 1, y: 0, rotate: 0,
-      duration: 0.7,
-      stagger: 0.028,
-      ease: 'back.out(1.6)'
-    }, '-=0.5')
-    .to('#heroSub', {opacity: 1, duration: 1, ease: 'power2.out'}, '-=0.4')
-    .to('#heroActions', {opacity: 1, duration: 0.8, ease: 'power2.out'}, '-=0.6')
-    .to('#scrollHint', {opacity: 1, duration: 1, ease: 'power2.out'}, '-=0.3');
+/* simple scroll-hint reveal */
+(function(){
+  gsap.to('#scrollHint', { opacity: 1, duration: 1.2, delay: 1.8, ease: 'power2.out' });
 })();
 
 /* ============================================================
